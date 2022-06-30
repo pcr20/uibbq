@@ -9,10 +9,11 @@ import aioble
 
 
 class iBBQ:
-    _DEVICE_NAME = "iBBQ"
+    _DEVICE_NAME = "tps"
 
     _PRIMARY_SERVICE = bluetooth.UUID(0xFFF0)
     _ACCOUNT_AND_VERIFY_CHARACTERISTIC = bluetooth.UUID(0xFFF2)
+    _TEMPERATURE_CHARACTERISTIC = bluetooth.UUID(0xFFF2)
     _SETTINGS_RESULT_CHARACTERISTIC = bluetooth.UUID(0xFFF1)
     _SETTINGS_WRITE_CHARACTERISTIC = bluetooth.UUID(0xFFF5)
     _REAL_TIME_DATA_CHARACTERISTIC = bluetooth.UUID(0xFFF4)
@@ -76,6 +77,17 @@ class iBBQ:
         except asyncio.TimeoutError:
             raise "Timeout during write"
 
+    async def _read(self, service, characteristic):
+        if not self._connection.is_connected():
+            raise "Cannot read, device disconnected"
+        try:
+            _service = await self._connection.service(service)
+            _characteristic = await _service.characteristic(characteristic)
+            data = await _characteristic.read()
+            return data
+        except asyncio.TimeoutError:
+            raise "Timeout during read"
+
     async def _subscribe(self, service, characteristic):
         if not self._connection.is_connected():
             raise "Cannot write, device disconnected"
@@ -96,38 +108,27 @@ class iBBQ:
         print("Connecting to", self._device)
         self._connection = await self._device.connect()
         print("Connected to", self._device)
+        return
 
+    async def read_temperature(self):
+        """Get current battery level in volts as ``(current_voltage, max_voltage)``.
+        Results are approximate and may differ from the
+        actual battery voltage by 0.1v or so.
+        """
         try:
-            # login
-            await self._write(
+            data = await self._read(
                 iBBQ._PRIMARY_SERVICE,
-                iBBQ._ACCOUNT_AND_VERIFY_CHARACTERISTIC,
-                iBBQ._CREDENTIALS_MSG,
-            )
-            # subscribe to settings
-            self._settings_data = await self._subscribe(
-                iBBQ._PRIMARY_SERVICE, iBBQ._SETTINGS_RESULT_CHARACTERISTIC
-            )
-            # subscribe to real time data
-            self._real_time_data = await self._subscribe(
-                iBBQ._PRIMARY_SERVICE, iBBQ._REAL_TIME_DATA_CHARACTERISTIC
-            )
-            # enable real time data
-            await self._write(
-                iBBQ._PRIMARY_SERVICE,
-                iBBQ._SETTINGS_WRITE_CHARACTERISTIC,
-                iBBQ._REALTIME_DATA_ENABLE_MSG,
-            )
-            # enable real time data
-            await self._write(
-                iBBQ._PRIMARY_SERVICE,
-                iBBQ._SETTINGS_WRITE_CHARACTERISTIC,
-                iBBQ._REALTIME_DATA_ENABLE_MSG,
-            )
-            asyncio.create_task(self._read_data())
+                iBBQ._TEMPERATURE_CHARACTERISTIC)
+
+            print("data {}".format(data))
+            temperature = unpack_from("<h", data[0 : 2])[0] / 100.0
+            print("temperature {}".format(temperature))
+            return temperature
+            return None
         except Exception as e:
-            self.disconnect()
-            raise e
+            print("Error retrieving temperature")
+            print(e)
+            return None
 
     async def battery_level(self):
         """Get current battery level in volts as ``(current_voltage, max_voltage)``.
@@ -179,3 +180,4 @@ class iBBQ:
 
     async def disconnect(self):
         await self._connection.disconnect()
+
