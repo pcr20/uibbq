@@ -1,5 +1,5 @@
 import uasyncio as asyncio
-from uibbq import iBBQ
+from uibbq2 import iBBQ
 import aioble
 
 def handle_data(d):
@@ -9,7 +9,7 @@ def handle_data(d):
 async def run():
     ibbq = iBBQ(handle_data)
     await ibbq.connect()
-    print("Battery:", await ibbq.read_temperature())
+    print("Temperature: {}".format(await ibbq.read_temperature()))
     await asyncio.sleep(1)
     print("Disconnecting")
     await ibbq.disconnect()

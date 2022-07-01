@@ -122,7 +122,7 @@ class iBBQ:
 
             print("data {}".format(data))
             temperature = unpack_from("<h", data[0 : 2])[0] / 100.0
-            print("temperature {}".format(temperature))
+            #print("temperature {}".format(temperature))
             return temperature
             return None
         except Exception as e:
