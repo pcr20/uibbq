@@ -66,6 +66,13 @@ class iBBQ:
                     return True
         return False
 
+    def get_addr_hex(self):
+        if self._device:
+            return self._device.addr_hex()
+        else:
+            return None
+
+
     async def _write(self, service, characteristic, message):
         if not self._connection.is_connected():
             raise "Cannot write, device disconnected"
