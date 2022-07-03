@@ -9,7 +9,8 @@ import aioble
 
 
 class iBBQ:
-    _DEVICE_NAME = "tps"
+    #_DEVICE_NAME = "tps"
+    _DEVICE_NAME = "sps"
 
     _PRIMARY_SERVICE = bluetooth.UUID(0xFFF0)
     _ACCOUNT_AND_VERIFY_CHARACTERISTIC = bluetooth.UUID(0xFFF2)
@@ -53,15 +54,18 @@ class iBBQ:
             iBBQ._UNITS_FAHRENHEIT_MSG,
         )
 
-    async def find_ibbq(self):
+    async def find_ibbq(self,device_name_in=None):
         # Scan for 5 seconds, in active mode, with very low interval/window (to
         # maximise detection rate).
+        if device_name_in:
+            self._DEVICE_NAME=device_name_in
         async with aioble.scan(
             5000, interval_us=30000, window_us=30000, active=True
         ) as scanner:
             async for result in scanner:
                 # See if it matches our name
-                if result.name() == iBBQ._DEVICE_NAME:
+                #print(result.name())
+                if result.name() == self._DEVICE_NAME:
                     self._device = result.device
                     return True
         return False
@@ -106,8 +110,11 @@ class iBBQ:
         except asyncio.TimeoutError:
             raise "Timeout during subscribe"
 
-    async def connect(self):
-        await self.find_ibbq()
+    async def connect(self,device_mac=None):
+        if device_mac:
+            self._device=aioble.Device(0,device_mac)
+        else:
+            await self.find_ibbq()
         if not self._device:
             print("iBBQ not found")
             return
@@ -117,7 +124,7 @@ class iBBQ:
         print("Connected to", self._device)
         return
 
-    async def read_temperature(self):
+    async def read_temperature_rh(self):
         """Get current battery level in volts as ``(current_voltage, max_voltage)``.
         Results are approximate and may differ from the
         actual battery voltage by 0.1v or so.
@@ -129,8 +136,9 @@ class iBBQ:
 
             print("data {}".format(data))
             temperature = unpack_from("<h", data[0 : 2])[0] / 100.0
+            rh = unpack_from("<h", data[2 : 4])[0] / 100.0
             #print("temperature {}".format(temperature))
-            return temperature
+            return (temperature,rh,data)
             return None
         except Exception as e:
             print("Error retrieving temperature")
