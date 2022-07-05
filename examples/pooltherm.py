@@ -29,7 +29,7 @@ async def find_sensors():
         print("Found sps: {} {}".format(ibbq.get_addr_hex(),ibbq._device.addr))
         device_macs.append(ibbq._device.addr)
         
-async def run(server="10.9.8.1",topic="esp32"):
+async def run(server="10.9.8.1",topicprefix="esp32"):
     mac = ubinascii.hexlify(network.WLAN().config('mac'),':').decode()
     ip=network.WLAN().ifconfig()[0]
     ntptime.settime()
@@ -44,7 +44,7 @@ async def run(server="10.9.8.1",topic="esp32"):
         #await ibbq.connect()
         macsensor=ibbq.get_addr_hex()
         temperature,rh,data = await ibbq.read_temperature_rh()
-        print("Temperature: {} RH: {}% data: {}".format(temperature,rh,'_'.join('{:02X}'.format(d) for d in data)))
+        print("Temperature: {} RH: {}% data: {}".format(temperature,rh,' '.join('{:02X}'.format(d) for d in data)))
         await asyncio.sleep(1)
         print("Disconnecting")
         await ibbq.disconnect()
@@ -52,8 +52,9 @@ async def run(server="10.9.8.1",topic="esp32"):
 
         t = time.gmtime()
         tstr = "{:04d}-{:02d}-{:02d}_{:02d}:{:02d}:{:02d}".format(t[0], t[1], t[2], t[3], t[4], t[5])
-        topic="{}/{}/{}".format(topic,mac,macsensor)
-        msg=json.dumps({"temperature":temperature, "rh":rh,"data":'_'.join('{:02X}'.format(d) for d in data), "sampletime":tstr, "hostip":ip, "hostmac":mac, "sensormac":macsensor})
+        #(time.time()+946684800)
+        topic="{}/{}/{}".format(topicprefix,mac,macsensor)
+        msg=json.dumps({"fields":{"temperature":temperature, "rh":rh,"sourcedata":'\\ '.join('{:02X}'.format(d) for d in data),"srctime":tstr},"tags":{"hostip":ip, "hostmac":mac, "sensormac":macsensor},"time":(time.time()+946684800)})
         print("publish: {} to {}".format(msg,topic))
         c = MQTTClient("umqtt_client", server)
         try:
