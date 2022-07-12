@@ -6,6 +6,7 @@ from struct import unpack_from
 import uasyncio as asyncio
 import bluetooth
 import aioble
+import sys
 
 
 class iBBQ:
@@ -19,6 +20,8 @@ class iBBQ:
     _SETTINGS_WRITE_CHARACTERISTIC = bluetooth.UUID(0xFFF5)
     _REAL_TIME_DATA_CHARACTERISTIC = bluetooth.UUID(0xFFF4)
     _HISTORIC_DATA_CHARACTERISTIC = bluetooth.UUID(0xFFF3)
+    _DATA_NOTIFY_RX_CHARACTERISTIC = bluetooth.UUID(0xFFF6)
+    _REQUEST_DATA_CHARACTERISTIC = bluetooth.UUID(0xFFF8)
 
     _CREDENTIALS_MSG = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
     _REALTIME_DATA_ENABLE_MSG = b"\x0B\x01\x00\x00\x00\x00"
@@ -151,27 +154,30 @@ class iBBQ:
         actual battery voltage by 0.1v or so.
         """
         try:
-            await self._write(
-                iBBQ._PRIMARY_SERVICE,
-                iBBQ._SETTINGS_WRITE_CHARACTERISTIC,
-                iBBQ._REQUEST_BATTERY_LEVEL_MSG,
-            )
+
+            if not self._settings_data:
+                self._settings_data = await self._subscribe(iBBQ._PRIMARY_SERVICE, iBBQ._DATA_NOTIFY_RX_CHARACTERISTIC)
+            retval = await self._write(iBBQ._PRIMARY_SERVICE,
+                iBBQ._REQUEST_DATA_CHARACTERISTIC,
+                b"\x02")
             data = await self._settings_data.notified(1000)
+            print("got data!")
+            print(data)
             if len(data) > 5:
-                header, current_voltage, max_voltage = unpack_from("<BHH", data)
-                if header == 0x24:
-                    # From https://github.com/adafruit/Adafruit_CircuitPython_BLE_iBBQ
-                    # Calibration was determined empirically, by comparing
-                    # the returned values with actual measurements of battery voltage,
-                    # on one sample each of two different products.
-                    return (
-                        current_voltage / 2000 - 0.3,
-                        (6550 if max_voltage == 0 else max_voltage) / 2000,
-                    )
+                current_voltage, max_voltage = unpack_from("<HH", data)
+        
+                # From https://github.com/adafruit/Adafruit_CircuitPython_BLE_iBBQ
+                # Calibration was determined empirically, by comparing
+                # the returned values with actual measurements of battery voltage,
+                # on one sample each of two different products.
+                return (
+                    current_voltage / 2000 - 0.3,
+                    (6550 if max_voltage == 0 else max_voltage) / 2000,
+                )
             return None
         except Exception as e:
             print("Error retrieving battery level")
-            print(e)
+            sys.print_exception(e)
             return None
 
     async def _read_data(self):
@@ -195,4 +201,3 @@ class iBBQ:
 
     async def disconnect(self):
         await self._connection.disconnect()
-
