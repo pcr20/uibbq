@@ -82,36 +82,36 @@ class iBBQ:
 
     async def _write(self, service, characteristic, message):
         if not self._connection.is_connected():
-            raise "Cannot write, device disconnected"
+            raise ValueError("Cannot write, device disconnected")
         try:
             _service = await self._connection.service(service)
             _characteristic = await _service.characteristic(characteristic)
             await _characteristic.write(message)
             return _characteristic
         except asyncio.TimeoutError:
-            raise "Timeout during write"
+            raise asyncio.TimeoutError("Timeout during write")
 
     async def _read(self, service, characteristic):
         if not self._connection.is_connected():
-            raise "Cannot read, device disconnected"
+            raise ValueError("Cannot read, device disconnected")
         try:
             _service = await self._connection.service(service)
             _characteristic = await _service.characteristic(characteristic)
             data = await _characteristic.read()
             return data
         except asyncio.TimeoutError:
-            raise "Timeout during read"
+            raise asyncio.TimeoutError("Timeout during read")
 
     async def _subscribe(self, service, characteristic):
         if not self._connection.is_connected():
-            raise "Cannot write, device disconnected"
+            raise ValueError("Cannot subscribe, device disconnected")
         try:
             _service = await self._connection.service(service)
             _characteristic = await _service.characteristic(characteristic)
             await _characteristic.subscribe()
             return _characteristic
         except asyncio.TimeoutError:
-            raise "Timeout during subscribe"
+            raise asyncio.TimeoutError("Timeout during subscribe")
 
     async def connect(self,device_mac=None):
         if device_mac:
@@ -142,11 +142,10 @@ class iBBQ:
             rh = unpack_from("<h", data[2 : 4])[0] / 100.0
             #print("temperature {}".format(temperature))
             return (temperature,rh,data)
-            return None
         except Exception as e:
             print("Error retrieving temperature")
-            print(e)
-            return None
+            sys.print_exception(e)
+            return (None,None,None)
 
     async def battery_level(self):
         """Get current battery level in volts as ``(current_voltage, max_voltage)``.
@@ -174,11 +173,11 @@ class iBBQ:
                     current_voltage / 2000 - 0.3,
                     (6550 if max_voltage == 0 else max_voltage) / 2000,
                 )
-            return None
+
         except Exception as e:
             print("Error retrieving battery level")
             sys.print_exception(e)
-            return None
+            return (None,None)
 
     async def _read_data(self):
         while self._connection.is_connected():
