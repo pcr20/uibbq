@@ -20,8 +20,11 @@ device_macs=[b'\x49\x22\x01\x23\x07\x1c',b'\x49\x22\x01\x06\x01\xf8']
 #device_macs=[]
 topicprefix="esp32"
 mqttserver="10.9.8.1"
+erno=0
 
 def handle_exception(e):
+    global erno
+    erno=erno+1
     fio = io.StringIO()
     sys.print_exception(e, fio)
     print(fio.read())
@@ -63,6 +66,7 @@ async def find_sensors():
         device_macs.append(ibbq._device.addr)
         
 async def run():
+    global erno
     mac = ubinascii.hexlify(network.WLAN().config('mac'),':').decode()
     ip=network.WLAN().ifconfig()[0]
     try: 
@@ -118,9 +122,10 @@ async def run():
         except Exception as e:
             print("Error publishing MQTT")
             sys.print_exception(e)
-            return None        
+            erno=erno+1
+    return erno
 
-asyncio.run(run())
+
 
 
 
