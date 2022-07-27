@@ -38,7 +38,7 @@ def mqtt_sub_cb(topic, msg):
     global WEBREPL_PASS
     WEBREPL_PASS=msg
     print((topic,msg))
-
+  
 c = MQTTClient("umqtt_client", "10.9.8.1")
 c.set_callback(mqtt_sub_cb)
 c.connect(clean_session=True)
@@ -65,10 +65,10 @@ if WEBREPL_PASS:
 
 ret_status = asyncio.run(inkbird.run())
 
-if ret_status:
-    print("Errorcode {} - resetting:".format(ret_status))
-    time.sleep(0.2)
-    machine.reset()
+#if ret_status:
+#    print("Errorcode {} - resetting:".format(ret_status))
+#    time.sleep(0.2)
+#    machine.reset()
 
 for n in range(30,0,-1):
     print("waiting for keyboard interrupt... {}".format(n))
