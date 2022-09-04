@@ -1,6 +1,8 @@
 import uasyncio as asyncio
 from uibbq import iBBQ
 import aioble
+from struct import unpack_from  
+
 
 import time
 import ntptime
@@ -15,7 +17,7 @@ from umqtt.robust import MQTTClient
 import ubinascii
 import json
 
-device_macs=[b'\x49\x22\x01\x23\x07\x1c',b'\x49\x22\x01\x06\x01\xf8']
+device_macs=[b'\x49\x22\x01\x23\x0f\x90',b'\x49\x22\x01\x23\x07\x1c',b'\x49\x22\x01\x06\x01\xf8']
 #device_macs=[b'\x49\x22\x01\x23\x07\x1c']
 #device_macs=[]
 topicprefix="esp32"
@@ -52,7 +54,28 @@ def read_battery_voltage():
 def handle_data(d):
     print("Result:", d)
 
+def decode_result(result_in):
+    print("data {}".format(ubinascii.hexlify(result_in.resp_data," ").decode()))
+    temperature = unpack_from("<h", result_in.resp_data[7 : 9])[0] / 100.0
+    rh = unpack_from("<h", result_in.resp_data[9 : 11])[0] / 100.0
+    return (temperature,rh,result_in.device.addr_hex(),result_in.resp_data,result_in)
 
+async def read_sensor_scan(result_list_in_out,device_name_in=["sps"]):
+    # Scan for 5 seconds, in active mode, with very low interval/window (to
+    # maximise detection rate).
+    assert isinstance(result_list_in_out, list)
+    mac_seen=[]
+    async with aioble.scan(
+        5000, interval_us=30000, window_us=30000, active=True
+    ) as scanner:
+        async for result in scanner:
+            #print(result.name())
+            if result.name() in device_name_in and not result.device.addr_hex() in mac_seen:
+                print("Found {}".format(result.name()))
+                result_list_in_out.append(decode_result(result))
+                mac_seen.append(result_list_in_out[-1][2])
+            
+          
 
 async def find_sensors():
     ibbq = iBBQ(handle_data)
@@ -64,7 +87,46 @@ async def find_sensors():
     if s:    
         print("Found sps: {} {}".format(ibbq.get_addr_hex(),ibbq._device.addr))
         device_macs.append(ibbq._device.addr)
-        
+
+
+async def run_scan():
+    global erno
+    mac = ubinascii.hexlify(network.WLAN().config('mac'),':').decode()
+    ip=network.WLAN().ifconfig()[0]
+    try: 
+        ntptime.settime()
+    except OSError as e:
+        handle_exception(e)
+    
+    scan_results_list_in_out=[]
+    devices_list=["tps","sps"]
+    print("Starting scan for {}".format(devices_list))
+    await read_sensor_scan(scan_results_list_in_out,devices_list)  
+    print("Completed scan")    
+    for scan_result in scan_results_list_in_out:
+        temperature=scan_result[0]
+        rh=scan_result[1]
+        data=scan_result[3]
+        macsensor=scan_result[2]
+        print("Temperature: {} RH: {}% data: {}".format(temperature,rh,' '.join('{:02X}'.format(d) for d in data)))
+        t = time.gmtime()
+        tstr = "{:04d}-{:02d}-{:02d}_{:02d}:{:02d}:{:02d}".format(t[0], t[1], t[2], t[3], t[4], t[5])
+        #(time.time()+946684800)
+        topic="{}/{}/{}".format(topicprefix,mac,macsensor)
+        msg=json.dumps({"fields":{"temperature":temperature, "rh":rh,"sourcedata":'\\ '.join('{:02X}'.format(d) for d in data),"srctime":tstr},"tags":{"hostip":ip, "hostmac":mac, "sensormac":macsensor},"time":(time.time()+946684800)})
+        print("publish: {} to {}".format(msg,topic))
+        c = MQTTClient("umqtt_client", mqttserver)
+        try:
+            c.connect()    
+            c.publish(topic,msg)
+            c.disconnect()
+        except Exception as e:
+            print("Error publishing MQTT")
+            sys.print_exception(e)
+            erno=erno+1
+    return erno
+
+
 async def run():
     global erno
     mac = ubinascii.hexlify(network.WLAN().config('mac'),':').decode()
