@@ -58,7 +58,17 @@ def decode_result(result_in):
     print("data {}".format(ubinascii.hexlify(result_in.resp_data," ").decode()))
     temperature = unpack_from("<h", result_in.resp_data[7 : 9])[0] / 100.0
     rh = unpack_from("<h", result_in.resp_data[9 : 11])[0] / 100.0
-    return (temperature,rh,result_in.device.addr_hex(),result_in.resp_data,result_in)
+    batt = result_in.resp_data[14]
+    return (temperature,rh,batt,result_in.device.addr_hex(),result_in.resp_data,result_in)
+    
+#inkbird IBS-TH2 data
+#0000   04 09 73 70 73 0a ff 82 0a d2 24 00 e4 ff 64 08    26.90   94.26 100%
+#0000   04 09 73 70 73 0a ff 3b 0b 53 25 00 29 60 64 08    28.75   95.55 100%
+#0000   04 09 73 70 73 0a ff b1 0b 79 25 00 91 77 64 08    29.93   95.93 100%
+#0000   04 09 73 70 73 0a ff c0 0a 11 14 00 78 cc 63 08    27.52   51.37 99%
+#0000   04 09 73 70 73 0a ff 1b 0b 7e 13 00 2f 0e 62 08    28.43   49.90 98%
+
+
 
 async def read_sensor_scan(result_list_in_out,device_name_in=["sps"]):
     # Scan for 5 seconds, in active mode, with very low interval/window (to
@@ -73,7 +83,7 @@ async def read_sensor_scan(result_list_in_out,device_name_in=["sps"]):
             if result.name() in device_name_in and not result.device.addr_hex() in mac_seen:
                 print("Found {}".format(result.name()))
                 result_list_in_out.append(decode_result(result))
-                mac_seen.append(result_list_in_out[-1][2])
+                mac_seen.append(result_list_in_out[-1][3])
             
           
 
@@ -106,14 +116,15 @@ async def run_scan():
     for scan_result in scan_results_list_in_out:
         temperature=scan_result[0]
         rh=scan_result[1]
-        data=scan_result[3]
-        macsensor=scan_result[2]
-        print("Temperature: {} RH: {}% data: {}".format(temperature,rh,' '.join('{:02X}'.format(d) for d in data)))
+        batt=scan_result[2]
+        data=scan_result[4]
+        macsensor=scan_result[3]
+        print("Temperature: {} RH: {}%  Batt: {}% data: {}".format(temperature,rh,batt,' '.join('{:02X}'.format(d) for d in data)))
         t = time.gmtime()
         tstr = "{:04d}-{:02d}-{:02d}_{:02d}:{:02d}:{:02d}".format(t[0], t[1], t[2], t[3], t[4], t[5])
         #(time.time()+946684800)
         topic="{}/{}/{}".format(topicprefix,mac,macsensor)
-        msg=json.dumps({"fields":{"temperature":temperature, "rh":rh,"sourcedata":'\\ '.join('{:02X}'.format(d) for d in data),"srctime":tstr},"tags":{"hostip":ip, "hostmac":mac, "sensormac":macsensor},"time":(time.time()+946684800)})
+        msg=json.dumps({"fields":{"temperature":temperature, "rh":rh,"batt":batt,"sourcedata":'\\ '.join('{:02X}'.format(d) for d in data),"srctime":tstr},"tags":{"hostip":ip, "hostmac":mac, "sensormac":macsensor},"time":(time.time()+946684800)})
         print("publish: {} to {}".format(msg,topic))
         c = MQTTClient("umqtt_client", mqttserver)
         try:
@@ -186,6 +197,7 @@ async def run():
             sys.print_exception(e)
             erno=erno+1
     return erno
+
 
 
 
