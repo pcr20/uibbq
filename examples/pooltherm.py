@@ -119,12 +119,13 @@ async def run_scan():
         batt=scan_result[2]
         data=scan_result[4]
         macsensor=scan_result[3]
-        print("Temperature: {} RH: {}%  Batt: {}% data: {}".format(temperature,rh,batt,' '.join('{:02X}'.format(d) for d in data)))
+        rssi=scan_result[5].rssi
+        print("Temperature: {} RH: {}%  Batt: {}% rssi: {} data: {}".format(temperature,rh,batt,rssi,' '.join('{:02X}'.format(d) for d in data)))
         t = time.gmtime()
         tstr = "{:04d}-{:02d}-{:02d}_{:02d}:{:02d}:{:02d}".format(t[0], t[1], t[2], t[3], t[4], t[5])
         #(time.time()+946684800)
         topic="{}/{}/{}".format(topicprefix,mac,macsensor)
-        msg=json.dumps({"fields":{"temperature":temperature, "rh":rh,"batt":batt,"sourcedata":'\\ '.join('{:02X}'.format(d) for d in data),"srctime":tstr},"tags":{"hostip":ip, "hostmac":mac, "sensormac":macsensor},"time":(time.time()+946684800)})
+        msg=json.dumps({"fields":{"temperature":temperature, "rh":rh,"batt":batt,"rssi":rssi,"sourcedata":'\\ '.join('{:02X}'.format(d) for d in data),"srctime":tstr},"tags":{"hostip":ip, "hostmac":mac, "sensormac":macsensor},"time":(time.time()+946684800)})
         print("publish: {} to {}".format(msg,topic))
         c = MQTTClient("umqtt_client", mqttserver)
         try:
